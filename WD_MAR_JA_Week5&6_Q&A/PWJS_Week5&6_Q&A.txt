@@ -1,0 +1,796 @@
+================================================================================
+     WEEK 5 & 6 – DATA PARAMETERIZATION & API TESTING (SENIOR SDET LEVEL)
+================================================================================
+
+
+WEEK 5 – DATA PARAMETERIZATION
+================================================================================
+
+Day 1: JSON & CSV
+Day 2: ENV Variables
+Day 3: API Fundamentals
+
+
+WEEK 6 – API INTEGRATION
+================================================================================
+
+Day 1: API with Salesforce
+Day 2: Playwright With API
+Day 3: Integrating Playwright API with Salesforce Application
+
+
+================================================================================
+QUESTION 1
+================================================================================
+
+Q: You're testing a login flow with 50 different user accounts (admin, guest,
+viewer, editor, etc.). Writing 50 separate tests or hardcoding credentials
+inside each test is not maintainable. How would data parameterization help here?
+Explain the benefits and show a practical example using Playwright's test.each()
+or a data file.
+
+A: I would use data parameterization so the same login test runs with multiple
+user accounts using one reusable test flow. It improves maintainability, reduces
+duplicate code, and makes adding new users as simple as updating a data file.
+It also gives better coverage because we can validate different roles
+consistently.
+
+Example:
+----------------------------------------------------------------------------
+import { test, expect } from '@playwright/test';
+
+const users = [
+  { role: 'admin', username: 'admin1', password: 'pass1' },
+  { role: 'guest', username: 'guest1', password: 'pass2' },
+  { role: 'viewer', username: 'viewer1', password: 'pass3' }
+];
+
+users.forEach(user => {
+  test(`Login as ${user.role}`, async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('#username', user.username);
+    await page.fill('#password', user.password);
+    await page.click('#login');
+    await expect(page).toHaveURL(/dashboard/);
+  });
+});
+----------------------------------------------------------------------------
+
+In real projects, I'd usually keep this data in JSON or CSV instead of
+hardcoding.
+
+Interviewer tip: They are checking whether you understand scalable test design,
+reusability, and data-driven testing in Playwright.
+
+
+================================================================================
+QUESTION 2
+================================================================================
+
+Q: Your test suite needs to validate checkout functionality with 20 different
+product configurations (different prices, quantities, discounts). All this test
+data is stored in a test-data.json file maintained by the business team. How
+would you read and use this JSON data in your Playwright tests? Show the code to
+import the file and loop through multiple test cases.
+
+A: I would keep the business-owned JSON file separate from test logic and read
+it directly into the Playwright test. Then I'd loop through each product
+configuration and run the same checkout validation for every dataset. This keeps
+the tests clean and allows the business team to update data without changing
+code.
+
+Example:
+----------------------------------------------------------------------------
+import { test, expect } from '@playwright/test';
+import testData from './test-data.json';
+
+testData.forEach((item) => {
+  test(`Checkout for ${item.productName}`, async ({ page }) => {
+    await page.goto('/shop');
+
+    await page.fill('#quantity', item.quantity.toString());
+    await page.fill('#discount', item.discount.toString());
+    await page.click(`text=${item.productName}`);
+    await page.click('#checkout');
+
+    await expect(page.locator('#totalPrice'))
+      .toHaveText(item.expectedTotal.toString());
+  });
+});
+----------------------------------------------------------------------------
+
+Example test-data.json:
+----------------------------------------------------------------------------
+[
+  {
+    "productName": "Laptop",
+    "quantity": 2,
+    "discount": 10,
+    "expectedTotal": 1800
+  },
+  {
+    "productName": "Phone",
+    "quantity": 1,
+    "discount": 5,
+    "expectedTotal": 950
+  }
+]
+----------------------------------------------------------------------------
+
+In larger frameworks, I'd also validate the JSON schema to avoid bad test data
+breaking the suite.
+
+Interviewer tip: They want to see if you can separate test data from test logic
+and build maintainable data-driven Playwright tests.
+
+
+================================================================================
+QUESTION 3
+================================================================================
+
+Q: Your QA team has provided a CSV file with 500 rows of test data for form
+validation (name, email, phone, address). They update this file daily and expect
+the tests to use the latest data. How would you read this CSV file in Playwright
+and run the same test for each row? Include handling for headers, empty rows,
+and special characters.
+
+A: I would read the CSV at runtime so the suite always uses the latest daily
+file. I'd parse the headers into objects, filter empty rows, and use a proper
+CSV parser to safely handle commas, quotes, and special characters. Then I'd
+loop through each record and run the same validation flow.
+
+Example:
+----------------------------------------------------------------------------
+import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import { parse } from 'csv-parse/sync';
+
+const file = fs.readFileSync('./test-data.csv', 'utf-8');
+
+const records = parse(file, {
+  columns: true,          // uses header row
+  skip_empty_lines: true,
+  trim: true
+});
+
+records.forEach((row: any, index: number) => {
+  test(`Form validation row ${index + 1}`, async ({ page }) => {
+    await page.goto('/form');
+
+    await page.fill('#name', row.name);
+    await page.fill('#email', row.email);
+    await page.fill('#phone', row.phone);
+    await page.fill('#address', row.address);
+
+    await page.click('#submit');
+    await expect(page.locator('.success-msg')).toBeVisible();
+  });
+});
+----------------------------------------------------------------------------
+
+Using a parser is important because manual split(',') can fail when addresses
+contain commas or quotes.
+
+Interviewer tip: They're checking whether you know real-world data-driven
+testing, file handling, and why robust parsing is better than quick hacks.
+
+
+================================================================================
+QUESTION 4
+================================================================================
+
+Q: Your team is deciding between JSON and CSV for storing test data. You have
+nested data structures (like an order with multiple line items) and also flat
+data (like 50 login credentials). Compare JSON vs CSV for: readability,
+maintainability, support for complex data types, and ease of use in Playwright.
+Which one would you choose for each scenario and why?
+
+A: I'd choose based on the data shape. For nested or relational data like orders
+with multiple line items, JSON is better because it supports objects, arrays,
+and hierarchy naturally. For flat bulk data like 1000 login credentials, CSV is
+better because it's lightweight, Excel-friendly, and easy for business users to
+maintain.
+
+JSON is stronger for readability in complex scenarios, maintainability of
+structured data, and direct import into Playwright as objects. CSV is simpler
+for tabular data, mass updates, and quick filtering or editing in Excel.
+
+So in this case, I'd use JSON for order/checkout scenarios and CSV for
+login/account datasets. In real frameworks, I often use both depending on the
+module.
+
+Interviewer tip: They want to know if you can choose the right tool
+pragmatically instead of forcing one format for every scenario.
+
+
+================================================================================
+QUESTION 5
+================================================================================
+
+Q: Your Playwright tests run locally on your machine, on CI/CD (Jenkins/GitHub
+Actions), and sometimes on a colleague's machine. The database credentials, API
+keys, and base URLs are different in each environment. Why shouldn't you
+hardcode these values? How do environment variables solve this problem? Give 3
+examples of what you'd store in ENV variables.
+
+A: We should not hardcode these values because it creates security risks, makes
+code difficult to move between environments, and causes frequent code changes
+for simple config updates. It also risks exposing secrets in Git repositories.
+
+Environment variables solve this by keeping sensitive or environment-specific
+values outside the codebase. The same test suite can run anywhere by changing
+only the runtime configuration, not the source code.
+
+Examples I'd store in ENV variables:
+
+1. BASE_URL=https://qa.myapp.com
+2. API_TOKEN=xxxxx
+3. DB_PASSWORD=xxxxx
+
+In Playwright, I'd read them using process.env.BASE_URL or process.env.API_TOKEN.
+
+Interviewer tip: They're checking whether you understand secure configuration
+management and writing portable automation frameworks.
+
+
+================================================================================
+QUESTION 6
+================================================================================
+
+Q: You have three environments: QA (https://qa.myapp.com), Staging
+(https://staging.myapp.com), and Production (https://myapp.com). You want to run
+the same test suite against any environment by just changing an environment
+variable. How would you configure baseURL in playwright.config.ts to read from
+process.env.BASE_URL? Also show how to override it via command line.
+
+A: I would keep baseURL dynamic in playwright.config.ts by reading from
+process.env.BASE_URL. That way the same tests run in QA, Staging, or Production
+without changing test code.
+
+Example:
+----------------------------------------------------------------------------
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  use: {
+    baseURL: process.env.BASE_URL || 'https://qa.myapp.com'
+  }
+});
+----------------------------------------------------------------------------
+
+Then I can override it from command line:
+
+----------------------------------------------------------------------------
+BASE_URL=https://staging.myapp.com npx playwright test
+----------------------------------------------------------------------------
+
+For Windows PowerShell:
+
+----------------------------------------------------------------------------
+$env:BASE_URL="https://myapp.com"; npx playwright test
+----------------------------------------------------------------------------
+
+This approach keeps config flexible and environment-independent.
+
+Interviewer tip: They want to see if you understand scalable environment
+management and how to avoid duplicate configs across environments.
+
+
+================================================================================
+QUESTION 7
+================================================================================
+
+Q: Every API test in your suite needs to send an Authorization: Bearer <token>
+header and use the same baseURL. You don't want to repeat this setup in every
+test file. How would you create a shared APIRequestContext in Playwright using
+test.beforeAll or a fixture? Show the code for setting up the context and using
+it across multiple test files.
+
+A: I would centralize the API setup using a shared fixture or beforeAll, so
+every test automatically gets the same baseURL and auth header. This avoids
+duplication, keeps tokens manageable, and makes future changes easy in one
+place.
+
+Example:
+----------------------------------------------------------------------------
+// fixtures/apiFixture.ts
+import { test as base, request } from '@playwright/test';
+
+export const test = base.extend({
+  apiContext: async ({}, use) => {
+    const apiContext = await request.newContext({
+      baseURL: 'https://api.myapp.com',
+      extraHTTPHeaders: {
+        Authorization: `Bearer ${process.env.API_TOKEN}`
+      }
+    });
+
+    await use(apiContext);
+    await apiContext.dispose();
+  }
+});
+----------------------------------------------------------------------------
+
+----------------------------------------------------------------------------
+// tests/users.spec.ts
+import { test, expect } from '../fixtures/apiFixture';
+
+test('Get users list', async ({ apiContext }) => {
+  const response = await apiContext.get('/users');
+  expect(response.status()).toBe(200);
+});
+----------------------------------------------------------------------------
+
+In real projects, I'd also generate the token dynamically instead of storing a
+static one.
+
+Interviewer tip: They're checking whether you know reusable framework design,
+fixture usage, and centralized API configuration in Playwright.
+
+
+================================================================================
+QUESTION 8
+================================================================================
+
+Q: You're testing a /api/users endpoint that returns 1000 user records (each
+with id, name, email, role). Validating every field of every record would make
+the test slow and hard to maintain. What validations would you actually perform?
+Discuss sampling, pagination validation, data integrity checks, and performance
+considerations. When would you validate all 1000 records?
+
+A: I wouldn't validate every field of all 1000 records in a normal regression
+run. First, I'd check status code, response time, total record count, schema,
+and mandatory fields like id, email, and role. Then I'd sample a few records
+from the beginning, middle, and end, and if pagination exists, validate page
+size, navigation, and no duplicate/missing records across pages.
+
+For data integrity, I'd verify unique IDs, valid email format, expected role
+values, and null checks. Full validation of all 1000 records is something I'd
+reserve for dedicated data audit jobs, migration testing, or critical production
+reconciliation—not for every CI run.
+
+Example:
+----------------------------------------------------------------------------
+const response = await request.get('/api/users');
+const users = await response.json();
+
+expect(response.status()).toBe(200);
+expect(users.length).toBe(1000);
+expect(users[0]).toHaveProperty('email');
+expect(users[500]).toHaveProperty('role');
+----------------------------------------------------------------------------
+
+Interviewer tip: They want to see if you can balance test coverage with
+execution efficiency and think like an engineer, not just assert everything
+blindly.
+
+
+================================================================================
+QUESTION 9
+================================================================================
+
+Q: Your API test receives a 401 Unauthorized error. Later, the same endpoint
+returns a 403 Forbidden. What's the difference between these two status codes?
+In an automation test, how would you handle each case differently? Give a
+real-world example where you'd expect a 401 vs a 403.
+
+A: 401 means the client is not properly authenticated—for example, missing
+token, expired token, or invalid credentials. 403 means the user is
+authenticated, but does not have permission to access that resource.
+
+In automation, for a 401 I would first validate token generation, token expiry,
+headers, or login flow. For a 403, I'd verify user roles, access control rules,
+and whether the correct user is being used for the test.
+
+A real example: if no token is sent while calling /api/users, I'd expect 401.
+If a normal user token tries to delete an admin-only account, I'd expect 403.
+
+Interviewer tip: They're checking whether you understand authentication vs
+authorization, which is very common in API automation and production debugging.
+
+
+================================================================================
+QUESTION 10
+================================================================================
+
+Q: Your e-commerce checkout API sometimes returns 503 Service Unavailable and
+sometimes 504 Gateway Timeout. As an automation engineer, how do you distinguish
+between these errors in your tests? What would you retry vs report immediately?
+How would you simulate each scenario in a test environment?
+
+A: 503 usually means the service is temporarily unavailable due to maintenance,
+overload, or the application server being down. 504 means a gateway or load
+balancer didn't receive a timely response from an upstream service, so it's more
+of a timeout between systems.
+
+In automation, I'd allow limited retry logic for both if they are known transient
+issues, especially 503 during short outages and 504 during temporary slowness.
+But if they repeat consistently, I'd fail the test and report immediately with
+logs, response times, and timestamps.
+
+To simulate them in test environments, I'd use mocked responses, API gateway
+rules, or backend toggles—returning forced 503 responses or delaying upstream
+services enough to trigger a 504.
+
+Interviewer tip: They're checking whether you understand infrastructure-level
+failures, smart retry strategy, and how to test resilience instead of only happy
+paths.
+
+
+================================================================================
+QUESTION 11
+================================================================================
+
+Q: You're testing a login endpoint that returns a 302 redirect to /dashboard.
+By default, Playwright follows redirects automatically. But you need to verify
+that the redirect URL is correct before following it. How would you disable
+automatic redirection, capture the 302 response, validate the Location header,
+and then manually navigate to the redirect URL?
+
+A: I would disable automatic redirects using maxRedirects: 0, so I can inspect
+the original 302 response first. Then I'd validate the status code and Location
+header, and only after that manually call the redirected URL. This helps confirm
+the backend redirect logic is correct.
+
+Example:
+----------------------------------------------------------------------------
+const response = await request.post('/login', {
+  data: {
+    username: 'admin',
+    password: 'pass'
+  },
+  maxRedirects: 0
+});
+
+expect(response.status()).toBe(302);
+
+const redirectUrl = response.headers()['location'];
+expect(redirectUrl).toBe('/dashboard');
+
+// manually follow redirect
+const nextResponse = await request.get(redirectUrl);
+expect(nextResponse.status()).toBe(200);
+----------------------------------------------------------------------------
+
+In browser-based flows, I'd also validate the final page UI after navigation.
+
+Interviewer tip: They want to see if you understand HTTP redirect behavior, API
+controls in Playwright, and validating backend flow before frontend behavior.
+
+
+================================================================================
+QUESTION 12
+================================================================================
+
+Q: Your team focuses only on happy-path API tests (valid requests, 200 OK).
+But a bug escaped to production because no one tested what happens when the API
+receives invalid JSON, missing required fields, or a malformed auth token.
+List at least 8 negative test scenarios you would add to your Playwright API
+test suite. For each, explain the expected status code and error message.
+
+A: I'd definitely expand coverage beyond happy paths because negative scenarios
+often expose validation and security gaps. My focus would be input validation,
+authentication, authorization, and unsupported operations.
+
+1. Missing required field (email) → 400 Bad Request → "email is required"
+2. Invalid JSON body → 400 Bad Request → "invalid JSON format"
+3. Wrong data type (age: "abc") → 400 Bad Request → "age must be number"
+4. Malformed token → 401 Unauthorized → "invalid token"
+5. Expired token → 401 Unauthorized → "token expired"
+6. Valid token but no permission → 403 Forbidden → "access denied"
+7. Record not found (/users/99999) → 404 Not Found → "user not found"
+8. Unsupported method (PUT on GET-only API) → 405 Method Not Allowed → "method not allowed"
+9. Duplicate unique value (existing email) → 409 Conflict → "email already exists"
+10. Payload too large → 413 Payload Too Large → "request size exceeded"
+
+Example in Playwright:
+----------------------------------------------------------------------------
+const response = await request.post('/users', {
+  data: {}
+});
+
+expect(response.status()).toBe(400);
+----------------------------------------------------------------------------
+
+These tests help ensure the API fails gracefully and securely, not just
+successfully.
+
+Interviewer tip: They're checking whether you think like a quality engineer who
+tests boundaries, misuse cases, and real production risks—not only success
+scenarios.
+
+
+================================================================================
+QUESTION 13
+================================================================================
+
+Q: Salesforce access tokens expire after 2 hours. Your test suite runs for
+3 hours and has 50 test files. Generating a new token before each test would be
+wasteful and hit rate limits. How would you generate a token once, store it,
+reuse it across all tests, and refresh it automatically when it expires?
+Implement this using Playwright fixtures or test.beforeAll.
+
+A: I would generate the Salesforce token once at the start of execution using a
+shared fixture or beforeAll, then store it in memory with its expiry time.
+All test files would reuse the same token instead of generating a new one for
+every test. Before each API usage, I'd check whether the token is close to
+expiry, and if so, refresh it automatically. This approach reduces unnecessary
+token requests, avoids rate limits, and keeps the long-running suite stable.
+
+Interviewer tip: They're looking for understanding of token caching, expiry
+handling, and designing scalable authentication for large test suites.
+
+
+================================================================================
+QUESTION 14
+================================================================================
+
+Q: Your UI test needs an Account record in Salesforce with specific fields
+(Name, Type, Industry). Instead of manually creating it via UI, you want to
+create it via Salesforce REST API before the test starts. Show how to:
+authenticate, POST to /services/data/v65.0/sobjects/Account/, capture the created
+Record ID, and clean it up after the test.
+
+A: I would use the Salesforce REST API in test setup to create the Account
+before the UI flow starts, because API creation is much faster and more reliable
+than creating data through the UI. First, I'd authenticate and get the access
+token, then send a POST request to create the Account with fields like Name,
+Type, and Industry, and capture the returned Record ID. After the test
+completes, I'd call the DELETE API using that same ID for cleanup, so test data
+doesn't accumulate in the org.
+
+This gives faster execution, cleaner environments, and independent test runs.
+
+Interviewer tip: They're checking whether you know how to use API for test data
+setup/teardown and combine backend efficiency with UI validation.
+
+
+================================================================================
+QUESTION 15
+================================================================================
+
+Q: You have a test that needs to: 1) Create an order via API (fast), 2) Open
+browser to verify the order appears in the UI, 3) Update the order via API,
+4) Verify the UI reflects the update. How would you mix API requests and browser
+actions in the same Playwright test? Show code using request fixture and page
+fixture together. What are the benefits over doing everything via UI?
+
+A: I'd use Playwright's request fixture for backend setup/update and page
+fixture for UI verification in the same test. That gives me faster execution
+because creating or updating orders through API is quicker and more stable than
+navigating multiple UI screens. Then I use the browser only where it adds
+value—validating what the user actually sees.
+
+Example:
+----------------------------------------------------------------------------
+test('Order create-update with API + UI', async ({ request, page }) => {
+
+  // Create order via API
+  const createRes = await request.post('/api/orders', {
+    data: { product: 'Laptop', qty: 1 }
+  });
+
+  const order = await createRes.json();
+  const orderId = order.id;
+
+  // Verify in UI
+  await page.goto('/orders');
+  await page.locator(`text=${orderId}`).click();
+
+  // Update via API
+  await request.put(`/api/orders/${orderId}`, {
+    data: { status: 'Shipped' }
+  });
+
+  // Refresh UI and verify update
+  await page.reload();
+  await expect(page.locator('#status')).toHaveText('Shipped');
+});
+----------------------------------------------------------------------------
+
+Benefits over full UI: faster setup, less flaky tests, less dependency on
+multiple screens, and better focus on business validation.
+
+Interviewer tip: They want to see if you understand how to combine API
+efficiency with UI validation for strong end-to-end automation.
+
+
+================================================================================
+QUESTION 16
+================================================================================
+
+Q: Your team is considering replacing Postman with Playwright for API testing
+to have a single tool for both API and UI. Before committing, you need to
+present limitations. What can Postman/REST Assured do that Playwright's API
+testing cannot? Consider: GUI for API exploration, built-in assertions
+libraries, contract testing, SOAP support, performance testing, and ecosystem
+of plugins. Be honest about trade-offs.
+
+A: Playwright API testing is strong for combining API and UI in one framework,
+but it's not a complete replacement for dedicated API tools in every case.
+Postman offers a GUI for quick API exploration, collections, sharing requests,
+and easy debugging for non-developers. REST Assured is stronger for advanced API
+assertions, schema validation, and deep Java ecosystem integrations.
+
+For limitations, Playwright is not ideal for SOAP-heavy projects, contract
+testing maturity, load/performance testing, or large plugin ecosystems compared
+to Postman/Newman, REST Assured, JMeter, or Pact. So my recommendation would be:
+use Playwright when API tests support UI flows and end-to-end scenarios, but
+keep dedicated tools if the organization has deep standalone API testing needs.
+
+Interviewer tip: They're checking whether you can evaluate tools realistically
+instead of blindly recommending one tool for every problem.
+
+
+================================================================================
+QUESTION 17
+================================================================================
+
+Q: You've built a test that creates data via API, then uses the browser to
+verify the UI. However, you've encountered timing issues (UI loads before API
+data is ready), state leakage between tests, and authentication sharing
+problems. Describe 3 specific challenges you've faced (or could face) and how
+you solved them in Playwright.
+
+A: One challenge is timing issues, where the UI opens before the API-created
+data is fully available due to async processing or replication delay. I'd solve
+that by polling the API, waiting for a specific network response, or refreshing
+the UI with proper assertions instead of hard waits.
+
+Second is state leakage between tests, where one test's data impacts another.
+I'd solve that by creating unique test data per run, cleaning up records after
+execution, and using isolated browser contexts.
+
+Third is authentication sharing problems, like expired tokens or reused sessions
+causing failures. I'd centralize token generation using fixtures, reuse valid
+sessions safely, and refresh tokens automatically when required.
+
+Interviewer tip: They're checking whether you understand real-world hybrid
+API + UI challenges and can build stable, isolated automation suites.
+
+
+================================================================================
+QUESTION 18
+================================================================================
+
+Q: Your test creates a user via API (takes 2 seconds) and then immediately
+opens the browser to log in as that user. Sometimes the test fails because the
+user record isn't yet available in the UI due to database replication lag or
+async processing. How would you handle this race condition in Playwright without
+using arbitrary delays? Show code using waitForResponse, waitForFunction, or
+polling.
+
+A: I'd avoid hard waits and synchronize based on system readiness. Since the
+user is created through API, I'd poll the backend or wait for the UI/API
+response that confirms the user is available before attempting login. That makes
+the test reliable even when replication timing varies.
+
+Example using polling:
+----------------------------------------------------------------------------
+test('Login after API user creation', async ({ request, page }) => {
+
+  await request.post('/api/users', {
+    data: { username: 'testuser', password: 'pass123' }
+  });
+
+  // Poll until user becomes available
+  await expect(async () => {
+    const res = await request.get('/api/users/testuser');
+    expect(res.status()).toBe(200);
+  }).toPass();
+
+  await page.goto('/login');
+  await page.fill('#username', 'testuser');
+  await page.fill('#password', 'pass123');
+  await page.click('#login');
+
+  await expect(page).toHaveURL(/dashboard/);
+});
+----------------------------------------------------------------------------
+
+If the UI fetches users via API, I can also use page.waitForResponse() for that
+specific call.
+
+Interviewer tip: They're checking whether you understand race conditions and can
+solve them using state-based waits instead of fragile sleep timers.
+
+
+================================================================================
+QUESTION 19
+================================================================================
+
+Q: Creating a new product in an e-commerce system via UI takes 15 seconds
+(navigating, filling forms, clicking buttons). Doing the same via API takes
+1 second. Your test needs a unique product for each run. Why would you choose
+API over UI for this setup? What are the benefits beyond speed? Also mention any
+downsides.
+
+A: I would choose API for product creation because it's faster, more stable,
+and removes unnecessary dependency on multiple UI screens. Beyond speed, it
+gives cleaner test setup, easier generation of unique data, less flakiness from
+UI changes, and lets the UI test focus only on customer-facing validation
+instead of admin setup steps.
+
+It also improves parallel execution because each run can create isolated
+products quickly. The downside is that API setup doesn't validate the product
+creation UI flow, so I'd still keep separate UI tests for that feature. I
+usually use API for setup and UI for business verification.
+
+Interviewer tip: They're checking whether you understand test layering—using the
+right channel for setup versus what truly needs UI validation.
+
+
+================================================================================
+QUESTION 20
+================================================================================
+
+Q: Your API test suite runs nightly and passes 100%. But users report a UI bug
+where the 'Add to Cart' button is disabled for a valid product. All API
+endpoints return correct data. How is this possible? Give at least 3 reasons why
+API tests can pass while UI fails. What would you add to your testing strategy
+to catch these issues earlier?
+
+A: Yes, that's absolutely possible because API tests validate backend contracts,
+but they don't guarantee the frontend behaves correctly. One reason could be a
+UI logic bug in JavaScript or React state management that incorrectly disables
+the button. Another could be CSS/overlay issues where the button appears
+disabled or unclickable, and a third could be incorrect API-to-UI mapping where
+valid backend data is misinterpreted by the frontend.
+
+To catch this earlier, I'd add end-to-end UI tests for critical purchase flows
+like Add to Cart, component/UI integration tests, and cross-browser regression
+checks. I'd also monitor console errors and network responses during UI
+automation.
+
+Interviewer tip: They're checking whether you understand the gap between
+backend correctness and frontend user experience, and whether you think in
+layers of testing.
+
+
+================================================================================
+QUESTION 21
+================================================================================
+
+Q: Your API returns 10,000 records. Writing assertions for each record is
+impossible. How would you validate this response efficiently? Discuss: schema
+validation, sampling, checksums/hashing, spot-checking specific records, and
+statistical validation. Show Playwright code for at least two of these
+approaches. When would you validate all records?
+
+A: I'd validate large responses intelligently instead of asserting every field
+of 10,000 records in a normal run. First, I'd do schema validation to ensure
+structure is correct, then sample records from start, middle, and end, and
+spot-check known critical IDs. If data consistency matters, I'd compare
+checksums or record counts against a trusted source.
+
+Example - Count check and sampling:
+----------------------------------------------------------------------------
+const response = await request.get('/api/users');
+const data = await response.json();
+
+// Count check
+expect(data.length).toBe(10000);
+
+// Sampling
+expect(data[0]).toHaveProperty('id');
+expect(data[5000]).toHaveProperty('email');
+expect(data[9999]).toHaveProperty('role');
+----------------------------------------------------------------------------
+
+Example - Unique ID validation:
+----------------------------------------------------------------------------
+const ids = data.map((x: any) => x.id);
+const uniqueIds = new Set(ids);
+expect(uniqueIds.size).toBe(data.length);
+----------------------------------------------------------------------------
+
+I would validate all 10,000 records during data migration testing, regulatory
+reconciliation, or dedicated batch validation jobs—not in every CI regression
+run.
+
+Interviewer tip: They're checking whether you can balance confidence,
+performance, and practicality when testing large-scale API responses.
+
+================================================================================
+                         END OF DOCUMENT
+================================================================================
