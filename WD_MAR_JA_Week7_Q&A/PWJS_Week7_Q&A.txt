@@ -1,0 +1,605 @@
+
+================================================================================
+     WEEK 7 – OOP FOR PLAYWRIGHT (SENIOR SDET LEVEL)
+================================================================================
+
+Topics Covered:
+  Day 1: OOPs for Playwright
+  Day 2: Inheritance & Polymorphism
+  Day 3: Polymorphism & Abstraction
+  Day 4: Interface & Custom Fixture
+
+
+================================================================================
+QUESTION 1: Four Main OOP Principles in Playwright Framework
+================================================================================
+
+Q: "You're building a Playwright automation framework from scratch. Your tech
+   lead asks you to explain how the four main OOP principles (Encapsulation,
+   Inheritance, Polymorphism, Abstraction) apply specifically to your framework
+   design. Give a concrete example of each principle using Playwright code."
+
+A: ENCAPSULATION:
+   Helps me keep locators and page actions inside Page Object classes instead of
+   exposing them directly to tests. That improves maintainability because tests
+   only call methods like login() instead of interacting with raw locators.
+
+   Example:
+   ----------------------------------------------------------------------------
+   class LoginPage {
+     private username = '#username';
+
+     async login(user: string) {
+       await this.page.locator(this.username).fill(user);
+     }
+   }
+   ----------------------------------------------------------------------------
+
+   INHERITANCE:
+   Helps reuse common functionality through a BasePage, like click, wait, or
+   navigation methods, which child pages can inherit.
+
+   Example:
+   ----------------------------------------------------------------------------
+   class BasePage {
+     async click(locator: string) {
+       await this.page.locator(locator).click();
+     }
+   }
+
+   class LoginPage extends BasePage {}
+   ----------------------------------------------------------------------------
+
+   POLYMORPHISM:
+   Gives flexibility—for example, the same login() method can support
+   username/password login or token-based login with different implementations.
+
+   Example:
+   ----------------------------------------------------------------------------
+   login(user: string, pass: string)
+   login(token: string)
+   ----------------------------------------------------------------------------
+
+   ABSTRACTION:
+   Hides implementation complexity from tests. Instead of tests knowing locator
+   details, they simply call business-level methods.
+
+   Example:
+   ----------------------------------------------------------------------------
+   await loginPage.login('admin', 'pass');
+   ----------------------------------------------------------------------------
+
+   This keeps tests clean, reusable, and easier to maintain in large frameworks.
+
+   Interviewer tip: They're checking whether you understand OOP conceptually and
+   can apply it practically in real Playwright framework architecture.
+
+
+================================================================================
+QUESTION 2: Encapsulation Violation in POM
+================================================================================
+
+Q: "In your Page Object Model, you have locators like #login-btn and #username.
+   A junior developer on your team is accessing these locators directly from
+   test scripts instead of going through page methods. Why is this a violation
+   of Encapsulation? How would you enforce proper encapsulation in your POM
+   classes?"
+
+A: Accessing locators directly from test scripts breaks Encapsulation because
+   tests become tightly coupled to internal page structure. If a locator
+   changes, multiple test files may break instead of only the Page Object.
+   The purpose of POM is to hide implementation details and expose only business
+   actions like login() or submitForm().
+
+   To enforce proper encapsulation:
+   • Make locators private (private username = '#username')
+   • Only expose public methods like login(), submitForm(), etc.
+   • Use code review guidelines to prevent direct locator access
+   • Implement linting rules to catch violations
+
+
+================================================================================
+QUESTION 3: Inheritance to Avoid Code Duplication
+================================================================================
+
+Q: "You have three different page objects: LoginPage, DashboardPage, and
+   ProfilePage. All of them need the same waitForPageLoad() method and a
+   reference to the page object. How would you use Inheritance to avoid
+   duplicating this code across all three classes?"
+ 
+A: I would create a reusable BasePage class containing common functionality like
+   the Playwright page reference and shared methods such as waitForPageLoad().
+   Then all page classes would extend that base class instead of duplicating the
+   same code.
+
+   Example:
+   ----------------------------------------------------------------------------
+   import { Page } from '@playwright/test';
+
+   class BasePage {
+     constructor(protected page: Page) {}
+
+     async waitForPageLoad() {
+       await this.page.waitForLoadState('networkidle');
+     }
+   }
+
+   class LoginPage extends BasePage {
+     async login(user: string, pass: string) {
+       await this.page.fill('#username', user);
+       await this.page.fill('#password', pass);
+       await this.page.click('#login');
+     }
+   }
+
+   class DashboardPage extends BasePage {
+     async openReports() {
+       await this.page.click('#reports');
+     }
+   }
+
+   class ProfilePage extends BasePage {
+     async updateProfile() {
+       await this.page.click('#save-profile');
+     }
+   }
+   ----------------------------------------------------------------------------
+
+   This reduces duplication, improves maintainability, and keeps shared behavior
+   centralized.
+
+   Interviewer tip: They're checking whether you can design scalable framework
+   architecture using inheritance and reusable base classes.
+
+
+================================================================================
+QUESTION 4: Polymorphism with Payment Gateways
+================================================================================
+
+Q: "You have two different payment gateways: Stripe and PayPal. Both need a
+   processPayment(amount) method, but the implementation is completely
+   different. How would you use Polymorphism to write a single test that works
+   with any payment gateway without changing the test logic?"
+
+A: I would create a common interface or parent class with a processPayment()
+   method, and then implement it differently for Stripe and PayPal. The test
+   would work against the common contract instead of knowing gateway-specific
+   details. That's polymorphism—the same method behaving differently based on
+   the object passed.
+
+   Example:
+   ----------------------------------------------------------------------------
+   interface PaymentGateway {
+     processPayment(amount: number): Promise<void>;
+   }
+
+   class StripePayment implements PaymentGateway {
+     async processPayment(amount: number) {
+       console.log(`Processing ${amount} via Stripe`);
+     }
+   }
+
+   class PayPalPayment implements PaymentGateway {
+     async processPayment(amount: number) {
+       console.log(`Processing ${amount} via PayPal`);
+     }
+   }
+   ----------------------------------------------------------------------------
+
+   Single reusable test logic:
+   ----------------------------------------------------------------------------
+   async function executePayment(gateway: PaymentGateway) {
+     await gateway.processPayment(500);
+   }
+
+   await executePayment(new StripePayment());
+   await executePayment(new PayPalPayment());
+   ----------------------------------------------------------------------------
+
+   This keeps the test scalable because adding a new gateway like RazorPay later
+   doesn't require changing the core test flow.
+
+   Interviewer tip: They're checking whether you understand practical
+   polymorphism and how it improves framework extensibility and maintainability.
+
+
+================================================================================
+QUESTION 5: Interface for Authentication Mechanisms
+================================================================================
+
+Q: "Your application supports three login mechanisms: username/password, SSO
+   (Okta), and OTP via SMS. Each has completely different implementation logic.
+   How would you design a reusable IAuthentication interface that all three
+   login classes must implement? Write the TypeScript interface and one
+   implementation example."
+
+A: I would create a common IAuthentication interface with a standard login()
+   method, and each authentication mechanism would implement its own logic
+   internally. This keeps the framework extensible because new login types can
+   be added without changing test logic.
+
+   Example:
+   ----------------------------------------------------------------------------
+   interface IAuthentication {
+     login(): Promise<void>;
+   }
+
+   // Username/Password implementation
+   class UsernamePasswordAuth implements IAuthentication {
+     constructor(private page: any) {}
+
+     async login(): Promise<void> {
+       await this.page.fill('#username', 'admin');
+       await this.page.fill('#password', 'pass123');
+       await this.page.click('#login');
+     }
+   }
+
+   // Okta SSO implementation
+   class OktaSSOAuth implements IAuthentication {
+     constructor(private page: any) {}
+
+     async login(): Promise<void> {
+       await this.page.goto(process.env.OKTA_URL);
+       await this.page.click('#okta-login');
+       // SSO redirect happens automatically
+     }
+   }
+
+   // OTP implementation
+   class OTPAuth implements IAuthentication {
+     constructor(private page: any, private phoneNumber: string) {}
+
+     async login(): Promise<void> {
+       await this.page.fill('#phone', this.phoneNumber);
+       await this.page.click('#send-otp');
+       const otp = await this.getOTPFromSMS();
+       await this.page.fill('#otp', otp);
+       await this.page.click('#verify');
+     }
+
+     private async getOTPFromSMS(): Promise<string> {
+       // API call to SMS service
+       return '123456';
+     }
+   }
+   ----------------------------------------------------------------------------
+
+   The test only interacts with the common login() method, not implementation
+   details.
+
+   Interviewer tip: They're checking whether you can design scalable
+   authentication architecture using interfaces and abstraction instead of
+   hardcoding logic into tests.
+
+
+================================================================================
+QUESTION 6: Custom Fixtures vs Duplicated Login Logic
+================================================================================
+
+Q: "Your Playwright framework has grown to 200+ tests. Login logic is duplicated
+   across 50 test files. When the login flow changed recently, you had to update
+   50 places. How would Custom Fixtures improve reusability and maintainability
+   compared to utility functions or beforeEach() hooks?"
+
+A: Custom Fixtures would centralize the login setup in one reusable place
+   instead of repeating it across test files. If the login flow changes, I only
+   update the fixture once instead of modifying 50 tests. Compared to utility
+   functions, fixtures integrate better with Playwright lifecycle management and
+   dependency injection.
+
+   Unlike beforeEach(), fixtures are more modular and reusable because tests can
+   request only the setup they need, like authenticated user, admin session, or
+   API context. They also improve readability since tests focus on business
+   validation instead of setup steps.
+
+   Example:
+   ----------------------------------------------------------------------------
+   // fixtures/auth.fixture.ts
+   import { test as base } from '@playwright/test';
+
+   export const test = base.extend({
+     authenticatedPage: async ({ page }, use) => {
+       await page.goto('/login');
+       await page.fill('#username', 'admin');
+       await page.fill('#password', 'pass123');
+       await page.click('#login');
+       await expect(page).toHaveURL('/dashboard');
+       await use(page);
+     }
+   });
+   ----------------------------------------------------------------------------
+
+   Using the fixture in tests:
+   ----------------------------------------------------------------------------
+   import { test } from '../fixtures/auth.fixture';
+
+   test('verify dashboard', async ({ authenticatedPage }) => {
+     await authenticatedPage.click('#reports');
+   });
+   ----------------------------------------------------------------------------
+
+   This makes the framework cleaner, scalable, and easier to maintain for large
+   suites.
+
+   Interviewer tip: They're checking whether you understand framework scalability
+   and why Playwright fixtures are more powerful than duplicated hooks or helper
+   methods.
+
+
+================================================================================
+QUESTION 7: beforeEach() vs Custom Fixtures Comparison
+================================================================================
+
+Q: "Your teammate says: 'Why do we need Custom Fixtures? We already have
+   beforeEach() hooks that run before every test.' Compare beforeEach() hooks vs
+   Custom Fixtures in Playwright. When would you choose one over the other? Can
+   they be used together?"
+
+A: beforeEach() hooks are good for simple common setup steps that every test in
+   a file needs, like navigating to a URL or clearing test data. But Custom
+   Fixtures are more powerful because they support dependency injection,
+   reusable objects, scoped setup, teardown, and sharing resources cleanly
+   across the framework.
+
+   Comparison:
+
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ beforeEach()                      │ Custom Fixtures                     │
+   ├───────────────────────────────────┼─────────────────────────────────────┤
+   │ Runs for every test in file       │ Tests request only what they need   │
+   │ Hard to share across files        │ Easily shared across spec files     │
+   │ No dependency injection           │ Full DI support                     │
+   │ Teardown is separate (afterEach)  │ Built-in teardown in fixture        │
+   │ Setup code visible in test file   │ Abstracted away from tests          │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+   When to choose beforeEach():
+   • Lightweight repetitive actions
+   • Clearing test data before each test
+   • Simple URL navigation
+
+   When to choose Custom Fixtures:
+   • Reusable authenticated sessions
+   • API contexts
+   • Page objects with specific setup
+   • Database connections
+   • Environment-specific resources
+
+   Yes, they can absolutely be used together. In real frameworks, I often use
+   fixtures for reusable resources and beforeEach() for test-specific
+   initialization steps.
+
+   Interviewer tip: They're checking whether you understand Playwright framework
+   architecture and can choose the right setup mechanism based on scalability
+   and maintainability.
+
+
+================================================================================
+QUESTION 8: Interfaces + Custom Fixtures for Enterprise Framework
+================================================================================
+
+Q: "Your enterprise framework has 500+ tests across 10 different microservices.
+   You need: 1) A contract for all API clients, 2) Reusable authentication
+   across services, 3) Different implementations for different environments.
+   Give real-world examples of how you'd use both Interfaces and Custom Fixtures
+   to solve these problems."
+
+A: I would use Interfaces to define a common contract for all API clients, so
+   every microservice client follows the same structure like get(), post(), or
+   authenticate(). That keeps the framework consistent even if implementations
+   differ between QA, Staging, or Production.
+
+   Interface for API clients:
+   ----------------------------------------------------------------------------
+   interface IApiClient {
+     get(endpoint: string): Promise<any>;
+     post(endpoint: string, body: any): Promise<any>;
+     authenticate(): Promise<void>;
+     getBaseUrl(): string;
+   }
+   ----------------------------------------------------------------------------
+
+   Environment-specific implementations:
+   ----------------------------------------------------------------------------
+   class QAApiClient implements IApiClient {
+     getBaseUrl() { return 'https://qa-api.myapp.com'; }
+     async get(endpoint: string) { /* QA specific logic */ }
+     async post(endpoint: string, body: any) { /* QA specific logic */ }
+     async authenticate() { /* QA auth */ }
+   }
+
+   class ProdApiClient implements IApiClient {
+     getBaseUrl() { return 'https://api.myapp.com'; }
+     async get(endpoint: string) { /* Prod specific logic */ }
+     async post(endpoint: string, body: any) { /* Prod specific logic */ }
+     async authenticate() { /* Prod auth with rate limiting */ }
+   }
+   ----------------------------------------------------------------------------
+
+   Custom Fixture for authenticated API context:
+   ----------------------------------------------------------------------------
+   import { test as base } from '@playwright/test';
+
+   export const test = base.extend({
+     authenticatedApi: async ({ request }, use) => {
+       const apiClient = process.env.ENV === 'PROD'
+         ? new ProdApiClient()
+         : new QAApiClient();
+
+       await apiClient.authenticate();
+
+       const context = await request.newContext({
+         baseURL: apiClient.getBaseUrl(),
+         extraHTTPHeaders: {
+           Authorization: `Bearer ${apiClient.getToken()}`
+         }
+       });
+
+       await use(context);
+       await context.dispose();
+     }
+   });
+   ----------------------------------------------------------------------------
+
+   Using in tests:
+   ----------------------------------------------------------------------------
+   import { test } from '../fixtures/api.fixture';
+
+   test('create user', async ({ authenticatedApi }) => {
+     const response = await authenticatedApi.post('/users', { name: 'John' });
+     expect(response.status()).toBe(201);
+   });
+   ----------------------------------------------------------------------------
+
+   This combination gives consistency through interfaces and scalability through
+   fixtures, which is very useful in enterprise-level frameworks.
+
+   Interviewer tip: They're checking whether you can combine OOP design with
+   Playwright architecture to build scalable enterprise automation frameworks.
+
+
+================================================================================
+QUESTION 9: Method Overloading in TypeScript
+================================================================================
+
+Q: "You're writing a setDateInput() method that needs to accept a Date object,
+   a timestamp number, or a string in 'YYYY-MM-DD' format. How would you
+   implement method overloading in TypeScript to handle all three input types
+   with proper type safety?"
+
+A: I would use TypeScript method overloading by defining multiple method
+   signatures and then handling the implementation with type checks. This keeps
+   the API flexible while still providing compile-time type safety.
+
+   Example:
+   ----------------------------------------------------------------------------
+   class DateUtils {
+     // Method signatures (overloads)
+     setDateInput(value: Date): void;
+     setDateInput(value: number): void;
+     setDateInput(value: string): void;
+
+     // Implementation
+     setDateInput(value: Date | number | string): void {
+       let formattedDate: string;
+
+       if (value instanceof Date) {
+         formattedDate = value.toISOString().split('T')[0];
+       } else if (typeof value === 'number') {
+         formattedDate = new Date(value).toISOString().split('T')[0];
+       } else {
+         formattedDate = value;
+       }
+
+       console.log(`Setting date: ${formattedDate}`);
+       await this.page.fill('#date', formattedDate);
+     }
+   }
+
+   // Usage examples
+   const utils = new DateUtils();
+   utils.setDateInput(new Date());        // Date object
+   utils.setDateInput(1678900000000);     // timestamp number
+   utils.setDateInput('2024-12-25');      // string format
+   ----------------------------------------------------------------------------
+
+   This allows callers to pass different input types safely while keeping one
+   reusable method name.
+
+   Interviewer tip: They're checking whether you understand TypeScript
+   overloading, union types, and designing flexible utility methods with strong
+   type safety.
+
+
+================================================================================
+QUESTION 10: Abstraction with login() Method
+================================================================================
+
+Q: "A test script using your POM currently does:
+   await loginPage.enterUsername('user');
+   await loginPage.enterPassword('pass');
+   await loginPage.clickLoginButton();
+
+   How would you use Abstraction to hide these three steps behind a single
+   login() method? Why does this simplify maintenance?"
+
+A: I would create a higher-level login() method inside the LoginPage class that
+   internally handles username entry, password entry, and clicking the login
+   button. The test only calls one business-level action instead of knowing
+   implementation details.
+
+   Example:
+   ----------------------------------------------------------------------------
+   class LoginPage {
+     private usernameInput = '#username';
+     private passwordInput = '#password';
+     private loginButton = '#login';
+
+     constructor(private page: Page) {}
+
+     async enterUsername(user: string) {
+       await this.page.fill(this.usernameInput, user);
+     }
+
+     async enterPassword(pass: string) {
+       await this.page.fill(this.passwordInput, pass);
+     }
+
+     async clickLoginButton() {
+       await this.page.click(this.loginButton);
+     }
+
+     // Abstracted business method
+     async login(user: string, pass: string) {
+       await this.enterUsername(user);
+       await this.enterPassword(pass);
+       await this.clickLoginButton();
+       await this.page.waitForURL('**/dashboard');
+     }
+   }
+   ----------------------------------------------------------------------------
+
+   Then the test becomes:
+   ----------------------------------------------------------------------------
+   await loginPage.login('user', 'pass');
+   ----------------------------------------------------------------------------
+
+   Why this simplifies maintenance:
+
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Before Abstraction                 │ After Abstraction                  │
+   ├───────────────────────────────────┼─────────────────────────────────────┤
+   │ Tests know 3 implementation steps │ Tests know 1 business action       │
+   │ Every test repeats the 3 steps    │ One method called everywhere       │
+   │ Locator change = update N tests   │ Locator change = update 1 method   │
+   │ Adding OTP = modify all tests     │ Adding OTP = modify 1 method only  │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+   If the login flow changes—like adding OTP or changing locators—I only update
+   the login() method in one place instead of modifying every test.
+
+   Interviewer tip: They're checking whether you understand abstraction and how
+   business-level methods make frameworks cleaner and easier to maintain.
+
+
+================================================================================
+                          BONUS: QUICK REFERENCE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ OOP Principle  │ Playwright Framework Application                          │
+├───────────────┼─────────────────────────────────────────────────────────────┤
+│ Encapsulation │ Private locators + public page methods                     │
+│ Inheritance   │ BasePage with common methods (click, wait, navigate)       │
+│ Polymorphism  │ Same method name (login, click) different implementations  │
+│ Abstraction   │ Business methods hiding technical details                  │
+│ Interface     │ Contract for API clients, authentication, page objects     │
+│ Fixtures      │ Reusable setup, dependency injection, scoped resources     │
+└───────────────┴─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
+```
